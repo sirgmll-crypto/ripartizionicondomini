@@ -1,0 +1,16 @@
+{
+  "name": "Ripartizione Acqua Condominiale",
+  "short_name": "Riparto Acqua",
+  "description": "Calcolo acqua condominiale con import PDF Pavia Acque ed esportazione finale in PDF.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4efe8",
+  "theme_color": "#b24a2c",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
