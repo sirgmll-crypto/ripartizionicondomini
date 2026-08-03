@@ -5,15 +5,7 @@ import { PDFDocument, StandardFonts, rgb, PageSizes } from "./vendor/pdf-lib.esm
 const STORAGE_KEY = "condo-water-calculator-v2";
 globalThis.pdfjsWorker = { WorkerMessageHandler };
 
-const DEFAULT_APARTMENT_NAMES = [
-  "NEGRI",
-  "FARAHI",
-  "BEPA",
-  "QUINTERO",
-  "DI MATTEO",
-  "TAGLIANI FERRARI",
-  "NESTOR CISNEROS",
-];
+const DEFAULT_APARTMENT_COUNT = 7;
 
 const CHARGE_DEFINITIONS = [
   { id: "quotaFissa", label: "Quota fissa", method: "units" },
@@ -46,31 +38,10 @@ const EMPTY_STATE = {
     amount: "",
     vat: "10",
   })),
-  apartments: createApartmentsFromNames(DEFAULT_APARTMENT_NAMES),
+  apartments: Array.from({ length: DEFAULT_APARTMENT_COUNT }, () => createApartment()),
 };
 
-const INVOICE_STATE = {
-  condoName: "Via Aspromonte 14 - Voghera",
-  invoiceNumber: "BOL_SI_PR/2026/240522",
-  periodStart: "2026-01-01",
-  periodEnd: "2026-03-31",
-  dueDate: "2026-05-15",
-  billedConsumption: "159",
-  normalizeConsumption: true,
-  charges: [
-    { id: "quotaFissa", label: "Quota fissa", amount: "60.03", vat: "10", method: "units" },
-    { id: "acquedotto", label: "Acquedotto", amount: "209.65", vat: "10", method: "consumption" },
-    { id: "fognatura", label: "Fognatura", amount: "62.76", vat: "10", method: "consumption" },
-    { id: "depurazione", label: "Depurazione", amount: "169.46", vat: "10", method: "consumption" },
-    { id: "oneri", label: "Oneri perequazione", amount: "25.84", vat: "10", method: "consumption" },
-    { id: "restituzioneAcconti", label: "Restituzione acconti", amount: "-211.31", vat: "10", method: "consumption" },
-    { id: "rettificaArrotondamento", label: "Rettifica arrotondamento", amount: "-0.01", vat: "0", method: "units" },
-    { id: "altreSpese", label: "Altre spese", amount: "", vat: "10", method: "units" },
-  ],
-  apartments: createApartmentsFromNames(DEFAULT_APARTMENT_NAMES),
-};
-
-const INITIAL_STATE = INVOICE_STATE;
+const INITIAL_STATE = EMPTY_STATE;
 
 const state = loadState();
 
@@ -117,14 +88,27 @@ function createApartmentsFromNames(names) {
   return names.map((name) => createApartment(name));
 }
 
+const STORAGE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function saveState() {
+  const entry = { data: state, expiresAt: Date.now() + STORAGE_TTL_MS };
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entry));
+}
+
 function loadState() {
   const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return structuredClone(INITIAL_STATE);
-  }
+  if (!raw) return structuredClone(INITIAL_STATE);
 
   try {
     const parsed = JSON.parse(raw);
+    const isWrapped = parsed != null && typeof parsed === "object" && "expiresAt" in parsed;
+    if (isWrapped) {
+      if (Date.now() > parsed.expiresAt) {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return structuredClone(INITIAL_STATE);
+      }
+      return hydrateState(parsed.data);
+    }
     return hydrateState(parsed);
   } catch (error) {
     console.warn("Impossibile leggere i dati salvati:", error);
@@ -161,7 +145,7 @@ function hydrateState(source) {
     invoiceNumber: source.invoiceNumber ?? "",
     periodStart: source.periodStart ?? "",
     periodEnd: source.periodEnd ?? "",
-    dueDate: source.dueDate ?? (source.invoiceNumber === INVOICE_STATE.invoiceNumber ? INVOICE_STATE.dueDate : ""),
+    dueDate: source.dueDate ?? "",
     billedConsumption: source.billedConsumption ?? "",
     normalizeConsumption: source.normalizeConsumption ?? true,
     charges,
@@ -284,13 +268,13 @@ function handleApartmentKeydown(event) {
 }
 
 function persistAndRender(message = "Bozza salvata in locale.") {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveState();
   updateSaveStatus(message);
   render();
 }
 
 function persistConsumptionDraft(message = "Consumi aggiornati.") {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveState();
   updateSaveStatus(message);
   renderResults();
 }
