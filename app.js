@@ -301,8 +301,8 @@ function renderChargeRows() {
       const total = calculateGross(charge.amount, charge.vat);
 
       return `
-        <tr data-charge-id="${charge.id}">
-          <td>${charge.label}</td>
+        <tr data-charge-id="${escapeValue(charge.id)}">
+          <td>${escapeHtml(charge.label)}</td>
           <td>
             <input data-field="amount" type="number" step="0.01" value="${escapeValue(charge.amount)}" readonly />
           </td>
@@ -354,7 +354,7 @@ function renderResults() {
     return;
   }
 
-  const chargeHeaders = state.charges.map((charge) => `<th>${charge.label}</th>`).join("");
+  const chargeHeaders = state.charges.map((charge) => `<th>${escapeHtml(charge.label)}</th>`).join("");
   elements.resultsHead.innerHTML = `
     <tr>
       <th>Interno</th>
