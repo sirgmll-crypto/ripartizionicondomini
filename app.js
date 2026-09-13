@@ -131,7 +131,7 @@ function hydrateState(source) {
 
   const apartments = Array.isArray(source.apartments) && source.apartments.length
     ? source.apartments.map((apartment, index) => ({
-        id: apartment.id || crypto.randomUUID(),
+        id: sanitizeApartmentId(apartment.id),
         name: apartment.name ?? `Interno ${index + 1}`,
         residents: apartment.residents ?? "",
         consumption: apartment.consumption ?? "",
@@ -678,6 +678,13 @@ function buildFileName(extension = "pdf") {
 
 function updateSaveStatus(message) {
   elements.saveStatus.textContent = message;
+}
+
+function sanitizeApartmentId(value) {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : crypto.randomUUID();
 }
 
 function escapeValue(value) {
