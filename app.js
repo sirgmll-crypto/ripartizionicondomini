@@ -131,7 +131,7 @@ function hydrateState(source) {
 
   const apartments = Array.isArray(source.apartments) && source.apartments.length
     ? source.apartments.map((apartment, index) => ({
-        id: apartment.id || crypto.randomUUID(),
+        id: sanitizeApartmentId(apartment.id),
         name: apartment.name ?? `Interno ${index + 1}`,
         residents: apartment.residents ?? "",
         consumption: apartment.consumption ?? "",
@@ -301,8 +301,8 @@ function renderChargeRows() {
       const total = calculateGross(charge.amount, charge.vat);
 
       return `
-        <tr data-charge-id="${charge.id}">
-          <td>${charge.label}</td>
+        <tr data-charge-id="${escapeValue(charge.id)}">
+          <td>${escapeHtml(charge.label)}</td>
           <td>
             <input data-field="amount" type="number" step="0.01" value="${escapeValue(charge.amount)}" readonly />
           </td>
@@ -319,7 +319,7 @@ function renderChargeRows() {
 function renderApartmentRows() {
   elements.apartmentsBody.innerHTML = state.apartments
     .map((apartment, index) => `
-      <tr data-apartment-id="${apartment.id}">
+      <tr data-apartment-id="${escapeValue(apartment.id)}">
         <td>
           <input data-field="name" type="text" value="${escapeValue(apartment.name || `Interno ${index + 1}`)}" readonly />
         </td>
@@ -354,7 +354,7 @@ function renderResults() {
     return;
   }
 
-  const chargeHeaders = state.charges.map((charge) => `<th>${charge.label}</th>`).join("");
+  const chargeHeaders = state.charges.map((charge) => `<th>${escapeHtml(charge.label)}</th>`).join("");
   elements.resultsHead.innerHTML = `
     <tr>
       <th>Interno</th>
@@ -678,6 +678,13 @@ function buildFileName(extension = "pdf") {
 
 function updateSaveStatus(message) {
   elements.saveStatus.textContent = message;
+}
+
+function sanitizeApartmentId(value) {
+  return typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : crypto.randomUUID();
 }
 
 function escapeValue(value) {
