@@ -1,6 +1,7 @@
 import { getDocument } from "./vendor/pdf.mjs";
 import { WorkerMessageHandler } from "./vendor/pdf.worker.mjs";
 import { PDFDocument, StandardFonts, rgb, PageSizes } from "./vendor/pdf-lib.esm.min.js";
+import { extractBilledConsumption } from "./pavia-acque.js";
 
 const STORAGE_KEY = "condo-water-calculator-v2";
 globalThis.pdfjsWorker = { WorkerMessageHandler };
@@ -472,20 +473,6 @@ function findAmount(text, label) {
   const pattern = new RegExp(`${label}\\s+(-?\\d+[\\.,]\\d{2})`, "i");
   const value = matchGroup(text, pattern);
   return value == null ? null : parseLocaleNumber(value);
-}
-
-function extractBilledConsumption(text) {
-  const expression = text.match(/Consumo mc\s+(\d+)\s*-\s*(\d+)\s*\+\s*(\d+)/i);
-  if (expression) {
-    return Number(expression[1]) - Number(expression[2]) + Number(expression[3]);
-  }
-
-  const summaryExpression = text.match(/Consumo del periodo dal .*? (\d+)\s+Consumi stimati prec\. fatt\. .*? (-?\d+)\s+Consumo stimato del periodo .*? (\d+)/i);
-  if (summaryExpression) {
-    return Number(summaryExpression[1]) + Number(summaryExpression[2]) + Number(summaryExpression[3]);
-  }
-
-  return null;
 }
 
 function extractCondoName(text) {
