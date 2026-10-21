@@ -2,6 +2,7 @@ import { getDocument } from "./vendor/pdf.mjs";
 import { WorkerMessageHandler } from "./vendor/pdf.worker.mjs";
 import { PDFDocument, StandardFonts, rgb, PageSizes } from "./vendor/pdf-lib.esm.min.js";
 import { extractBilledConsumption } from "./pavia-acque.js";
+import { apartmentsAfterInvoiceImport, displayApartmentName } from "./apartments.js";
 
 const STORAGE_KEY = "condo-water-calculator-v2";
 globalThis.pdfjsWorker = { WorkerMessageHandler };
@@ -133,7 +134,7 @@ function hydrateState(source) {
   const apartments = Array.isArray(source.apartments) && source.apartments.length
     ? source.apartments.map((apartment, index) => ({
         id: apartment.id || crypto.randomUUID(),
-        name: apartment.name ?? `Interno ${index + 1}`,
+        name: typeof apartment.name === "string" ? apartment.name : "",
         residents: apartment.residents ?? "",
         consumption: apartment.consumption ?? "",
         millesimi: apartment.millesimi ?? "",
@@ -156,6 +157,7 @@ function hydrateState(source) {
 
 function bindStaticFields() {
   elements.apartmentsBody.addEventListener("input", handleApartmentChange);
+  elements.apartmentsBody.addEventListener("focusout", handleApartmentNameBlur);
   elements.apartmentsBody.addEventListener("keydown", handleApartmentKeydown);
 }
 
@@ -236,11 +238,25 @@ function handleApartmentChange(event) {
   }
 
   const field = event.target.dataset.field;
+  if (field === "name") {
+    apartment.name = event.target.value.trim();
+    persistConsumptionDraft("Nomi aggiornati.");
+    return;
+  }
   if (field !== "consumption") {
     return;
   }
   apartment[field] = normalizeDecimalInput(event.target.value);
   persistConsumptionDraft();
+}
+
+function handleApartmentNameBlur(event) {
+  if (event.target.dataset?.field !== "name") {
+    return;
+  }
+
+  const trimmed = event.target.value.trim();
+  event.target.value = trimmed;
 }
 
 function handleApartmentRemove(event) {
@@ -322,7 +338,13 @@ function renderApartmentRows() {
     .map((apartment, index) => `
       <tr data-apartment-id="${apartment.id}">
         <td>
-          <input data-field="name" type="text" value="${escapeValue(apartment.name || `Interno ${index + 1}`)}" readonly />
+          <input
+            data-field="name"
+            type="text"
+            autocomplete="off"
+            placeholder="${escapeValue(displayApartmentName("", index))}"
+            value="${escapeValue(apartment.name)}"
+          />
         </td>
         <td>
           <input
@@ -358,7 +380,7 @@ function renderResults() {
   const chargeHeaders = state.charges.map((charge) => `<th>${charge.label}</th>`).join("");
   elements.resultsHead.innerHTML = `
     <tr>
-      <th>Interno</th>
+      <th>Nome</th>
       <th>M3 inseriti</th>
       <th>M3 riprop.</th>
       ${chargeHeaders}
@@ -405,12 +427,7 @@ function applyParsedInvoice(parsed) {
     method: definition.method,
   }));
 
-  state.apartments = state.apartments.map((apartment) => ({
-    ...apartment,
-    residents: "2",
-    millesimi: "0",
-    consumption: "",
-  }));
+  state.apartments = apartmentsAfterInvoiceImport(state.apartments);
 }
 
 async function parsePaviaAcquePdf(file) {
@@ -525,7 +542,7 @@ function matchGroup(text, pattern) {
 function calculate() {
   const apartments = state.apartments.map((apartment, index) => ({
     id: apartment.id,
-    name: apartment.name || `Interno ${index + 1}`,
+    name: displayApartmentName(apartment.name, index),
     residents: toNumber(apartment.residents),
     rawConsumption: toNumber(apartment.consumption),
     millesimi: toNumber(apartment.millesimi),
@@ -766,7 +783,7 @@ async function buildResultsPdf(summary) {
   const headerBg = rgb(0.95, 0.93, 0.9);
   const stripeBg = rgb(0.99, 0.98, 0.97);
   const columns = [
-    { key: "name", label: "Immobile", width: 105, align: "left" },
+    { key: "name", label: "Nome", width: 150, align: "left" },
     { key: "rawConsumption", label: "M3 inseriti", width: 50, align: "right" },
     { key: "adjustedConsumption", label: "M3 riprop.", width: 50, align: "right" },
     ...state.charges.map((charge) => ({
@@ -779,7 +796,7 @@ async function buildResultsPdf(summary) {
   ];
 
   const buildRowValues = (row) => ({
-    name: row.name,
+    name: pdfSafeText(row.name, font),
     rawConsumption: formatNumber(row.rawConsumption),
     adjustedConsumption: formatNumber(row.adjustedConsumption),
     total: formatPdfCurrency(row.total),
@@ -987,6 +1004,19 @@ function drawTableRow(page, y, columns, row, font, fontBold, options) {
 
     x += column.width;
   });
+}
+
+function pdfSafeText(text, font) {
+  let safe = "";
+  for (const char of String(text ?? "")) {
+    try {
+      font.widthOfTextAtSize(char, 8);
+      safe += char;
+    } catch {
+      safe += "?";
+    }
+  }
+  return safe;
 }
 
 function wrapText(text, maxWidth, font, size) {
